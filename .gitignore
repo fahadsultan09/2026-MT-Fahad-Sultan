@@ -1,1 +1,5 @@
 /config
+datasets/*/train/
+datasets/*/valid/
+datasets/*/test/
+video/
