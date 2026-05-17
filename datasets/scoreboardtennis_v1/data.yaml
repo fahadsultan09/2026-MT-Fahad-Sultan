@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['boardT']
+
+roboflow:
+  workspace: fahads-workspace-6tmzo
+  project: scoreboardtennis-mwjjg-rkzfj-0pgip
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/fahads-workspace-6tmzo/scoreboardtennis-mwjjg-rkzfj-0pgip/dataset/1

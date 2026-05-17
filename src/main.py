@@ -6,7 +6,7 @@ import os
 # CONFIG
 # -----------------------------
 INPUT_FILE = "../data/raw/Jabeur_All_hits_fixed_v3.xml"
-OUTPUT_FILE = "../data/processed/fahad_sultan_output.xml"
+OUTPUT_FILE = "../data/processed/fahad_sultan_output2.xml"
 GAP_SECONDS = 4
 
 # -----------------------------

@@ -1,5 +1,15 @@
-/config
+config/
+runs/
+video/
+*.pt
+*.onnx
+*.engine
+*.tflite
+*.avi
+*.mp4
 datasets/*/train/
 datasets/*/valid/
 datasets/*/test/
-video/
+.vscode/
+.venv/
+__pycache__/
