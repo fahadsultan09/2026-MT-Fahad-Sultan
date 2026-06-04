@@ -142,26 +142,65 @@ def all_hits_outside_same_side(point_hits, playable_limit=11.885):
 
     return True
 
+def remove_single_outliers(point_hits, court_limit=12.5):
+    cleaned = []
 
-def clean_point_4_10(point_hits, court_limit=12.5,
-                     playable_limit=11.885):
+    for i, h in enumerate(point_hits):
+        y = get_y(h)
+
+        is_last = i == len(point_hits) - 1
+
+        # remove only non-last clear outliers
+        if abs(y) >= court_limit and not is_last:
+            continue
+
+        cleaned.append(copy.deepcopy(h))
+
+    return cleaned
+
+def clean_point_4_10(point_hits,court_limit=12.5,playable_limit=11.885):
 
     # Rule:
     # remove short fault rallies
-
-    if short_fault_rally(point_hits, playable_limit):
+    if short_fault_rally(
+        point_hits,
+        playable_limit
+    ):
         return None
 
     # Rule:
     # remove fully invalid same-side out rallies
-
-    if all_hits_outside_same_side(point_hits, playable_limit):
+    if all_hits_outside_same_side(
+        point_hits,
+        playable_limit
+    ):
         return None
 
-    cleaned = remove_clear_middle_outliers( point_hits,court_limit    )
+    # Rule:
+    # remove obvious outliers
+    cleaned = remove_single_outliers(
+        point_hits,
+        court_limit
+    )
 
-    cleaned = average_same_side_runs_between_opposites(cleaned)
+    # Rule:
+    # additional middle outlier cleanup
+    cleaned = remove_clear_middle_outliers(
+        cleaned,
+        court_limit
+    )
 
-    cleaned = trim_after_late_out_of_play(cleaned, playable_limit)
+    # Rule:
+    # merge consecutive same-side hits between opposites
+    cleaned = average_same_side_runs_between_opposites(
+        cleaned
+    )
+
+    # Rule:
+    # trim trailing noise after rally-ending out ball
+    cleaned = trim_after_late_out_of_play(
+        cleaned,
+        playable_limit
+    )
 
     return cleaned
