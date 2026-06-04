@@ -1,150 +1,151 @@
-import xml.etree.ElementTree as ET
-import re
 import os
+import xml.etree.ElementTree as ET
 
-# -----------------------------
-# CONFIG
-# -----------------------------
-INPUT_FILE = "../data/raw/Jabeur_All_hits_fixed_v3.xml"
-OUTPUT_FILE = "../data/processed/fahad_sultan_output2.xml"
-GAP_SECONDS = 4
+from config_loader import load_config
 
-# -----------------------------
-# FUNCTION 1: CLEAN XML
-# -----------------------------
-def clean_xml_content(content: str) -> str:
-    content = re.sub(r'\b(start|end)\s+of\s+point\s+\d+\b', '', content, flags=re.IGNORECASE)
-    content = re.sub(r'^\s*\d{2}:\d{2}:\d{2}\s*$', '', content, flags=re.MULTILINE)
-    content = re.sub(r'\n\s*\n', '\n', content)
-    return content.strip()
+from xml_utils import (
+    clean_xml_content,
+    read_xml,
+    write_xml,
+    rebuild_points
+)
 
-# -----------------------------
-# HELPER: TIME → SECONDS
-# -----------------------------
-def time_to_seconds(t: str) -> int:
-    h, m, s = map(int, t.split(":"))
-    return h * 3600 + m * 60 + s
+from cleaners.point_1_3 import clean_point_1_3
+from cleaners.point_4_10 import clean_point_4_10
+from cleaners.point_11_20 import clean_point_11_20
 
-# -----------------------------
-# FUNCTION 2: PROCESS XML
-# -----------------------------
-def process_xml(xml_string: str, clean: bool = True):
-    if clean:
-        xml_string = clean_xml_content(xml_string)
+
+settings = load_config()
+
+INPUT_FILE = settings["INPUT_FILE"]
+OUTPUT_FILE = settings["OUTPUT_FILE"]
+GAP_SECONDS = settings["GAP_SECONDS"]
+COURT_LIMIT = settings["COURT_LIMIT"]
+PLAYABLE_LIMIT = settings["PLAYABLE_LIMIT"]
+
+
+def apply_cleaning(point_index, point_hits):
+
+    if 1 <= point_index <= 3:
+        return clean_point_1_3(
+            point_hits,
+            COURT_LIMIT
+        )
+
+    elif 4 <= point_index <= 10:
+        return clean_point_4_10(
+            point_hits,
+            COURT_LIMIT,
+            PLAYABLE_LIMIT
+        )
+    
+    elif 11 <= point_index <= 20:
+        return clean_point_11_20(
+            point_hits,
+            COURT_LIMIT,
+            PLAYABLE_LIMIT
+        )
+
+    return point_hits
+
+
+def process_xml(xml_string: str):
+
+    xml_string = clean_xml_content(xml_string)
 
     root = ET.fromstring(xml_string)
+
     game = root.find(".//game")
+
     if game is None:
-        raise ValueError("No <game> element found in XML")
+        raise ValueError("No <game> element found")
 
-    # Build a flat list of elements in order
-    flat = list(game.iter())
-
-    # Map each hit → its following player siblings
-    hit_to_players = {}
-    hits = []
-
-    for i, elem in enumerate(flat):
-        if elem.tag == "hit":
-            hits.append(elem)
-            players = []
-
-            # Look ahead until next hit
-            for next_elem in flat[i+1:]:
-                if next_elem.tag == "hit":
-                    break
-                if next_elem.tag == "player":
-                    players.append(next_elem)
-
-            hit_to_players[elem] = players
-
-    # Save original point attributes
     original_points = game.findall("point")
-    points_attrs = [p.attrib for p in original_points]
 
-    # Group hits by time gap
-    new_points = []
-    current_point = []
-    prev_time = None
+    points_attrs = [p.attrib.copy() for p in original_points]
 
-    for h in hits:
-        t = time_to_seconds(h.attrib["time"])
-        if prev_time is None:
-            current_point.append(h)
-        else:
-            if t - prev_time > GAP_SECONDS:
-                new_points.append(current_point)
-                current_point = []
-            current_point.append(h)
-        prev_time = t
+    rebuilt_points = rebuild_points(
+        game,
+        GAP_SECONDS
+    )
 
-    if current_point:
-        new_points.append(current_point)
-
-    # Remove old points
+    # remove original points
     for p in game.findall("point"):
         game.remove(p)
 
-    # Create new points
-    for i, point_hits in enumerate(new_points, start=1):
-        attrs = points_attrs[i-1].copy() if i-1 < len(points_attrs) else {}
-        attrs["id"] = str(i)
-        point_elem = ET.SubElement(game, "point", attrs)
+    new_point_id = 1
 
-        hit_counter = 1  # reset for each point
+    for i, point_hits in enumerate(rebuilt_points, start=1):
 
-        for h in point_hits:
-            hit_attribs = h.attrib.copy()
-            hit_attribs["id"] = str(hit_counter)
+        cleaned_hits = apply_cleaning(
+            i,
+            point_hits
+        )
 
-            hit_elem = ET.SubElement(point_elem, "hit", hit_attribs)
-            hit_elem.text = h.text
+        if cleaned_hits is None:
+            print(f"Skipping point {i}")
+            continue
 
-            hit_counter += 1
+        if len(cleaned_hits) < 2:
+            print(f"Skipping point {i}: less than 2 hits")
+            continue
+
+        attrs = (
+            points_attrs[i - 1].copy()
+            if i - 1 < len(points_attrs)
+            else {}
+        )
+
+        attrs["id"] = str(new_point_id)
+
+        point_elem = ET.SubElement(
+            game,
+            "point",
+            attrs
+        )
+
+        for hit_id, h in enumerate(cleaned_hits, start=1):
+
+            hit_attrs = h.attrib.copy()
+
+            hit_attrs["id"] = str(hit_id)
+
+            ET.SubElement(
+                point_elem,
+                "hit",
+                hit_attrs
+            )
+
+        new_point_id += 1
 
     return root
 
-# -----------------------------
-# FUNCTION 3: INDENT XML
-# -----------------------------
-def indent(elem, level=0):
-    i = "\n" + level * "  "
-    if len(elem):
-        if not elem.text or not elem.text.strip():
-            elem.text = i + "  "
-        if not elem.tail or not elem.tail.strip():
-            elem.tail = i
-        for child in elem:
-            indent(child, level + 1)
-        if not child.tail or not child.tail.strip():
-            child.tail = i
-    else:
-        if level and (not elem.tail or not elem.tail.strip()):
-            elem.tail = i
 
-# -----------------------------
-# MAIN
-# -----------------------------
 def main():
+
     if not os.path.exists(INPUT_FILE):
         print(f"Input file not found: {INPUT_FILE}")
         return
 
     print(f"Reading XML from: {INPUT_FILE}")
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
-        xml_data = f.read()
+
+    xml_data = read_xml(INPUT_FILE)
 
     print("Processing XML...")
-    root = process_xml(xml_data, clean=True)
 
-    os.makedirs(os.path.dirname(OUTPUT_FILE) or ".", exist_ok=True)
+    root = process_xml(xml_data)
+
+    os.makedirs(
+        os.path.dirname(OUTPUT_FILE),
+        exist_ok=True
+    )
 
     print(f"Saving XML to: {OUTPUT_FILE}")
-    indent(root)
-    tree = ET.ElementTree(root)
-    tree.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
+
+    write_xml(root, OUTPUT_FILE)
 
     print("Done!")
+
 
 if __name__ == "__main__":
     main()
