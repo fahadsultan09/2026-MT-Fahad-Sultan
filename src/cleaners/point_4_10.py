@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import copy
 
-from cleaners.base import get_y, set_y
+from cleaners.base import get_y, set_y , mostly_same_side
 
 
 def sign_of_hit(hit):
@@ -160,6 +160,9 @@ def remove_single_outliers(point_hits, court_limit=12.5):
 
 def clean_point_4_10(point_hits,court_limit=12.5,playable_limit=11.885):
 
+    if mostly_same_side(point_hits, threshold=0.75):
+        return None
+    
     # Rule:
     # remove short fault rallies
     if short_fault_rally(

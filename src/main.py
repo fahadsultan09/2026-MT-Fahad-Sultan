@@ -10,44 +10,46 @@ from xml_utils import (
     rebuild_points
 )
 
+from cleaners.common import clean_common
 from cleaners.point_1_3 import clean_point_1_3
 from cleaners.point_4_10 import clean_point_4_10
 from cleaners.point_11_20 import clean_point_11_20
+from cleaners.point_21_40 import clean_point_21_40
 
+configuration = load_config()
 
-settings = load_config()
-
-INPUT_FILE = settings["INPUT_FILE"]
-OUTPUT_FILE = settings["OUTPUT_FILE"]
-GAP_SECONDS = settings["GAP_SECONDS"]
-COURT_LIMIT = settings["COURT_LIMIT"]
-PLAYABLE_LIMIT = settings["PLAYABLE_LIMIT"]
-
+INPUT_FILE = configuration["INPUT_FILE"]
+OUTPUT_FILE = configuration["OUTPUT_FILE"]
+GAP_SECONDS = configuration["GAP_SECONDS"]
+COURT_LIMIT = configuration["COURT_LIMIT"]
+PLAYABLE_LIMIT = configuration["PLAYABLE_LIMIT"]
 
 def apply_cleaning(point_index, point_hits):
 
+    # first apply common rules
+    point_hits = clean_common(
+        point_hits,
+        COURT_LIMIT,
+        PLAYABLE_LIMIT
+    )
+
+    if point_hits is None:
+        return None
+
+    # then apply range-specific edge cases
     if 1 <= point_index <= 3:
-        return clean_point_1_3(
-            point_hits,
-            COURT_LIMIT
-        )
+        return clean_point_1_3(point_hits,COURT_LIMIT)
 
     elif 4 <= point_index <= 10:
-        return clean_point_4_10(
-            point_hits,
-            COURT_LIMIT,
-            PLAYABLE_LIMIT
-        )
-    
+        return clean_point_4_10(point_hits)
+
     elif 11 <= point_index <= 20:
-        return clean_point_11_20(
-            point_hits,
-            COURT_LIMIT,
-            PLAYABLE_LIMIT
-        )
+        return clean_point_11_20(point_hits)
+    
+    elif 21 <= point_index <= 40:
+        return clean_point_21_40(point_hits,COURT_LIMIT,PLAYABLE_LIMIT)
 
     return point_hits
-
 
 def process_xml(xml_string: str):
 
