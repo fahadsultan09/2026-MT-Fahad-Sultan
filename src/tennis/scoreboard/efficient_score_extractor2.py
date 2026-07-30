@@ -516,31 +516,23 @@ def log_game_end_scores(
                     cv2.imwrite(
                         os.path.join(GAME_SCORE_DEBUG_DIR, f"{filename}_ocr_input.jpg"), processed
                     )
-                    # The game tally is in the fixed middle column. This
-                    # avoids confusing the far-left set score (for example
-                    # 5) with the middle game score (for example 0).
+                    
+                    
+                    
                     h, w = crop.shape[:2]
-                    # x1, x2 = int(w * 0.79), int(w * 0.89)
-                    # Wider crop so the digit is never clipped
+                    
+                    
 
                     digit_width = int(w * 0.08)
 
                     x1 = int(w * 0.78)
                     x2 = x1 + digit_width
 
-                    # x1, x2 = int(w * 0.76), int(w * 0.92)
+                    
                     top = crop[int(h * 0.04):int(h * 0.48), x1:x2]
                     bottom = crop[int(h * 0.52):int(h * 0.96), x1:x2]
                     cv2.imwrite(os.path.join(GAME_SCORE_DEBUG_DIR, f"{filename}_game_score_a.jpg"), top)
                     cv2.imwrite(os.path.join(GAME_SCORE_DEBUG_DIR, f"{filename}_game_score_b.jpg"), bottom)
-
-                    # def read_digit(image):
-                    #     enlarged = cv2.resize(image, None, fx=3, fy=3,
-                    #                           interpolation=cv2.INTER_CUBIC)
-                    #     text = " ".join(_fix(block["text"])
-                    #                     for block in ocr.read(preprocess(enlarged)))
-                    #     digits = re.findall(r"[0-6]", text)
-                    #     return int(digits[-1]) if digits else None
 
 
                     def read_digit(image):
@@ -602,8 +594,8 @@ def log_game_end_scores(
 
                                 text = block["text"].strip()
 
-                                # if re.fullmatch(r"[0-6]", text):
-                                #     votes.append(text)conf = block["conf"]
+                                
+                                
                                 
                                 conf = block["conf"]
 
@@ -616,16 +608,24 @@ def log_game_end_scores(
                             return None
                         return int(Counter(votes).most_common(1)[0][0])
 
-                    tally_a, tally_b = read_digit(top), read_digit(bottom)
+                    tally_a = read_digit(top)
+                    tally_b = read_digit(bottom)
+
                     blocks = ocr.read(processed)
+
                     if blocks:
                         score = parse_score(blocks)
+
                     if score is None:
                         score = ScoreReading()
+
                     if tally_a is not None:
                         score.games["a"] = tally_a
+                        game_el.set("score_A", str(tally_a))
+
                     if tally_b is not None:
                         score.games["b"] = tally_b
+                        game_el.set("score_B", str(tally_b))
 
             source = "last-hit-minus-0.5s frame"
             if score is None:
@@ -780,7 +780,12 @@ def run():
         id(endpoint["point_el"]): reading
         for endpoint, reading in zip(endpoints, all_readings)
     }
+    # log_game_end_scores(root, readings_by_point, video, detector, ocr)
+
+    regroup_into_games(root, endpoints, all_readings)
+
     log_game_end_scores(root, readings_by_point, video, detector, ocr)
+
     video.close()
 
     # ── Sanity check: flag any reconstructed game with a suspicious
