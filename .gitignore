@@ -7,6 +7,9 @@ video/
 *.tflite
 *.avi
 *.mp4
+*.jpg
+*.jpeg
+*.png
 datasets/*/train/
 datasets/*/valid/
 datasets/*/test/
